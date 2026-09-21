@@ -103,6 +103,8 @@ export interface LogDay {
   total_on_duty_hours: number;
   cycle_hours_used: number;
   cycle_hours_remaining: number;
+  /** On-duty hours over the last N days including this one, keyed by N. */
+  rolling_on_duty: Record<string, number>;
   balanced: boolean;
   totals: Record<DutyStatus, number>;
   entries: GridEntry[];

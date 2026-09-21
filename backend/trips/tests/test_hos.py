@@ -320,6 +320,28 @@ class DailyLogSheets(unittest.TestCase):
         self.assertEqual(sum(as_hours.values()), 24.0)
         self.assertEqual(log_day.total_on_duty_hours, 12.25)
 
+    def test_recap_rolling_windows_are_consistent(self):
+        """The printed recap needs 5, 7 and 8 day on-duty totals per sheet.
+
+        A longer window can never hold fewer hours than a shorter one, and the
+        cycle figure must agree with the window its rule is based on.
+        """
+        plan = make_plan(200, 1900, cycle_used=30.0)
+        days = build_log_days(plan.segments, daily_on_duty=plan.daily_on_duty)
+
+        for log_day in days:
+            rolling = log_day.rolling_on_duty
+            self.assertEqual(set(rolling), {5, 7, 8}, "missing a recap window")
+            self.assertLessEqual(rolling[5], rolling[7] + 0.01)
+            self.assertLessEqual(rolling[7], rolling[8] + 0.01)
+
+            # The 70/8 recap prints A = last 8 days and B = 70 - A.
+            self.assertAlmostEqual(log_day.cycle_hours_used, rolling[8], places=2)
+            self.assertAlmostEqual(
+                log_day.cycle_hours_used + log_day.cycle_hours_remaining,
+                70.0, places=2,
+            )
+
     def test_recap_box_includes_hours_used_before_departure(self):
         """The driver starts with 40 h already in the cycle; day one must say so."""
         plan = make_plan(150, 250, cycle_used=40.0)

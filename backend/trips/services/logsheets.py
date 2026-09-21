@@ -60,6 +60,9 @@ class LogDay:
     #: Rolling on-duty hours in the cycle at the end of this day.
     cycle_hours_used: float = 0.0
     cycle_hours_remaining: float = 0.0
+    #: On-duty hours over the last N days including today, keyed by N.
+    #: The printed recap asks for several window lengths at once.
+    rolling_on_duty: dict[int, float] = field(default_factory=dict)
 
     @property
     def total_minutes(self) -> int:
@@ -251,10 +254,17 @@ def _attach_cycle_recap(
             log_day.totals[DutyStatus.DRIVING] + log_day.totals[DutyStatus.ON_DUTY],
         )
 
-    for log_day in log_days:
-        oldest = log_day.day - timedelta(days=cycle_days - 1)
-        used = sum(m for d, m in ledger.items() if oldest <= d <= log_day.day)
-        log_day.cycle_hours_used = round(used / 60, 2)
-        log_day.cycle_hours_remaining = round(
-            max(0, cycle_limit_hours * 60 - used) / 60, 2
+    def window_hours(day: date, days: int) -> float:
+        oldest = day - timedelta(days=days - 1)
+        return round(
+            sum(m for d, m in ledger.items() if oldest <= d <= day) / 60, 2
         )
+
+    for log_day in log_days:
+        # 5, 7 and 8 day windows are the ones the printed recap asks for.
+        log_day.rolling_on_duty = {
+            days: window_hours(log_day.day, days) for days in (5, 7, 8)
+        }
+        used = window_hours(log_day.day, cycle_days)
+        log_day.cycle_hours_used = used
+        log_day.cycle_hours_remaining = round(max(0.0, cycle_limit_hours - used), 2)

@@ -591,30 +591,43 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 5px 18px rgba(0, 0, 0, 0.2);
 }
 
-/* Log sheet typography — deliberately mimics the printed DOT form. */
-.ls-dept { font-size: 11px; fill: #1f2a44; font-family: Georgia, "Times New Roman", serif; }
-.ls-title { font-size: 15px; font-weight: 700; fill: #0f1729; letter-spacing: 0.02em; }
-.ls-subtitle { font-size: 9px; font-weight: 600; fill: #1f2a44; }
-.ls-fine { font-size: 8px; fill: #3b4a68; font-weight: 600; }
+/* Log sheet typography -- deliberately mimics the printed DOT log book. */
+.ls-title {
+  font-size: 19px;
+  font-weight: 700;
+  fill: #0b1220;
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: -0.01em;
+}
+.ls-label { font-size: 10px; fill: #0b1220; font-weight: 700;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-fine { font-size: 8px; fill: #1f2937; font-weight: 400;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-caption { font-size: 7.5px; fill: #1f2937; font-weight: 600;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-caption.is-active { fill: #1d4ed8; font-weight: 700; }
+.ls-micro { font-size: 6.4px; fill: #374151; font-weight: 400;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-slash { font-size: 15px; fill: #0b1220; font-weight: 400; }
 .ls-sheet-no { font-size: 9px; fill: #1d4ed8; font-weight: 700; letter-spacing: 0.06em; }
-.ls-caption { font-size: 7px; fill: #47566f; font-weight: 700; letter-spacing: 0.03em; }
+.ls-scale { font-size: 7.5px; fill: #ffffff; font-weight: 700;
+  font-family: Arial, Helvetica, sans-serif; }
 .ls-value {
-  font-size: 15px;
-  fill: #0f1729;
+  font-size: 14px;
+  fill: #0b1220;
   font-family: Georgia, "Times New Roman", serif;
   font-style: italic;
   font-weight: 700;
 }
-.ls-hour { font-size: 7.5px; fill: #1f2a44; font-weight: 600; }
-.ls-rowlabel { font-size: 8.5px; fill: #1f2a44; font-weight: 700; }
-.ls-rowlabel-sub { font-size: 7px; fill: #47566f; font-weight: 600; }
-.ls-rownum { font-size: 8.5px; fill: #47566f; font-weight: 700; }
-.ls-total { font-size: 14px; fill: #0f1729; font-weight: 700; font-family: var(--mono); }
+.ls-value-sm { font-size: 11px; }
+.ls-rowlabel { font-size: 8.5px; fill: #0b1220; font-weight: 700;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-total { font-size: 14px; fill: #0b1220; font-weight: 700; font-family: var(--mono); }
 .ls-total-sum { font-size: 13px; }
 .ls-total-sum.is-bad { fill: #b91c1c; }
-.ls-remark-text { font-size: 8px; fill: #1f2a44; font-weight: 600; }
-.ls-recap-label { font-size: 7px; fill: #47566f; font-weight: 700; }
-.ls-recap-value { font-size: 13px; fill: #0f1729; font-weight: 700; font-family: var(--mono); }
+.ls-remark-text { font-size: 8px; fill: #0b1220; font-weight: 600;
+  font-family: Arial, Helvetica, sans-serif; }
+.ls-recap-value { font-size: 13px; fill: #0b1220; font-weight: 700; font-family: var(--mono); }
 
 .ls-duty-line {
   stroke: #1d4ed8;

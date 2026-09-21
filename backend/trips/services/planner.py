@@ -241,6 +241,9 @@ def serialise(trip: PlannedTrip) -> dict:
                 "total_on_duty_hours": day.total_on_duty_hours,
                 "cycle_hours_used": day.cycle_hours_used,
                 "cycle_hours_remaining": day.cycle_hours_remaining,
+                "rolling_on_duty": {
+                    str(days): hours for days, hours in day.rolling_on_duty.items()
+                },
                 "balanced": day.is_balanced(),
                 "totals": {
                     status.value: round(day.totals[status] / 60, 2)
