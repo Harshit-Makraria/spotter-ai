@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { TripRequest } from "../types";
+import { ChevronIcon, FlagIcon, MapPinIcon, SparkIcon, TruckIcon } from "./icons";
 
 /** Ready-made trips so a reviewer never has to type to see the app work. */
 export const EXAMPLES: { name: string; blurb: string; request: TripRequest }[] = [
@@ -87,15 +88,15 @@ export function TripForm({ onSubmit, loading }: Props) {
   const cycleRemaining = (form.cycle_limit_hours ?? 70) - form.cycle_hours_used;
 
   return (
-    <form className="trip-form" onSubmit={handleSubmit}>
-      <div className="examples">
-        <span className="examples-label">Try one</span>
+    <form className="form" onSubmit={handleSubmit}>
+      <div>
+        <span className="section-label">Try one</span>
         <div className="examples-grid">
           {EXAMPLES.map((example) => (
             <button
               key={example.name}
               type="button"
-              className="example-chip"
+              className="example"
               onClick={() => applyExample(example.request)}
               disabled={loading}
             >
@@ -113,6 +114,7 @@ export function TripForm({ onSubmit, loading }: Props) {
         value={form.current_location}
         onChange={(value) => update("current_location", value)}
         placeholder="Fort Worth, TX"
+        icon={<TruckIcon size={15} />}
       />
       <Field
         id="pickup"
@@ -120,6 +122,7 @@ export function TripForm({ onSubmit, loading }: Props) {
         value={form.pickup_location}
         onChange={(value) => update("pickup_location", value)}
         placeholder="Dallas, TX"
+        icon={<MapPinIcon size={15} />}
       />
       <Field
         id="dropoff"
@@ -127,6 +130,7 @@ export function TripForm({ onSubmit, loading }: Props) {
         value={form.dropoff_location}
         onChange={(value) => update("dropoff_location", value)}
         placeholder="Houston, TX"
+        icon={<FlagIcon size={15} />}
       />
 
       <div className="field">
@@ -157,11 +161,12 @@ export function TripForm({ onSubmit, loading }: Props) {
 
       <button
         type="button"
-        className="advanced-toggle"
+        className="link-btn"
         onClick={() => setShowAdvanced((open) => !open)}
         aria-expanded={showAdvanced}
       >
         {showAdvanced ? "Hide" : "Show"} planning assumptions
+        <ChevronIcon size={13} />
       </button>
 
       {showAdvanced && (
@@ -225,7 +230,17 @@ export function TripForm({ onSubmit, loading }: Props) {
       )}
 
       <button type="submit" className="submit" disabled={loading}>
-        {loading ? "Planning route…" : "Plan trip & draw logs"}
+        {loading ? (
+          <>
+            <SparkIcon size={16} className="spin" />
+            Planning route…
+          </>
+        ) : (
+          <>
+            <TruckIcon size={16} />
+            Plan trip &amp; draw logs
+          </>
+        )}
       </button>
     </form>
   );
@@ -238,6 +253,7 @@ function Field({
   value,
   onChange,
   placeholder,
+  icon,
 }: {
   id: string;
   label: string;
@@ -245,6 +261,7 @@ function Field({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <div className="field">
@@ -252,15 +269,18 @@ function Field({
         {label}
         {hint && <span className="field-hint">{hint}</span>}
       </label>
-      <input
-        id={id}
-        type="text"
-        required
-        value={value}
-        placeholder={placeholder}
-        autoComplete="off"
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <div className="input-wrap">
+        {icon && <span className="input-icon">{icon}</span>}
+        <input
+          id={id}
+          type="text"
+          required
+          value={value}
+          placeholder={placeholder}
+          autoComplete="off"
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </div>
     </div>
   );
 }

@@ -75,11 +75,10 @@ function Row({
         </strong>
         <span>
           {segment.location || segment.label}
-          {" · "}
-          {segment.hours} h
           {isDrive ? "" : ` · mile ${Math.round(segment.start_mile)}`}
         </span>
       </div>
+      <span className={`chip${isDrive ? "" : " is-accent"}`}>{segment.hours} h</span>
     </div>
   );
 }

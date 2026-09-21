@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   Marker,
@@ -54,7 +54,26 @@ interface Props {
   onHoverSegment: (index: number | null) => void;
 }
 
+/** Watches the theme attribute so the basemap follows light/dark. */
+function useMapTone(): "Light" | "Dark" {
+  const read = () =>
+    document.documentElement.dataset.theme === "dark" ? "Dark" : "Light";
+  const [tone, setTone] = useState<"Light" | "Dark">(read);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => setTone(read()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return tone;
+}
+
 export function RouteMap({ plan, highlightSegment, onHoverSegment }: Props) {
+  const tone = useMapTone();
   const points = useMemo(
     () => plan.route.geometry as [number, number][],
     [plan.route.geometry],
@@ -76,22 +95,32 @@ export function RouteMap({ plan, highlightSegment, onHoverSegment }: Props) {
       className="route-map"
       attributionControl
     >
-      {/* Esri's dark canvas: free, keyless, and muted enough that the amber
-          route and the coloured stop pins carry the eye. */}
+      {/* Esri's canvas basemaps: free, keyless, and muted enough that the amber
+          route and the coloured stop pins carry the eye. The `key` forces a
+          clean swap when the theme changes. */}
       <TileLayer
-        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+        key={`${tone}-base`}
+        url={`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${tone}_Gray_Base/MapServer/tile/{z}/{y}/{x}`}
         attribution="Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
         maxZoom={16}
       />
       {/* Place and road labels ride on top so they stay legible over the route. */}
       <TileLayer
-        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+        key={`${tone}-labels`}
+        url={`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${tone}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`}
         attribution=""
         maxZoom={16}
       />
 
       {/* A wide translucent casing under the route reads better on a busy map. */}
-      <Polyline positions={points} pathOptions={{ color: "#0f172a", weight: 9, opacity: 0.25 }} />
+      <Polyline
+        positions={points}
+        pathOptions={{
+          color: tone === "Dark" ? "#000000" : "#0f172a",
+          weight: 10,
+          opacity: 0.22,
+        }}
+      />
       <Polyline positions={points} pathOptions={{ color: "#f59e0b", weight: 4, opacity: 0.95 }} />
 
       {stops.map((stop) => (
