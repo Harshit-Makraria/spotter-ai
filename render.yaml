@@ -5,7 +5,7 @@ services:
     runtime: python
     plan: free
     rootDir: backend
-    buildCommand: ./build.sh
+    buildCommand: bash ./build.sh
     startCommand: gunicorn config.wsgi:application --workers 2 --timeout 60
     healthCheckPath: /api/health/
     envVars:
