@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import dj_database_url
 from dotenv import load_dotenv
@@ -18,11 +19,31 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
+def env_origins(name: str, default: str = "") -> list[str]:
+    """Read origins as ``scheme://host[:port]``.
+
+    Django rejects an origin carrying a path, and a URL copied out of a browser
+    address bar almost always ends in a slash. Normalising here means a stray
+    slash is a non-event rather than a failed deploy.
+    """
+    origins = []
+    for item in env_list(name, default):
+        parts = urlsplit(item if "//" in item else f"//{item}")
+        origins.append(
+            f"{parts.scheme}://{parts.netloc}"
+            if parts.scheme and parts.netloc
+            else item.rstrip("/")
+        )
+    return origins
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com")
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "https://*.onrender.com")
+CSRF_TRUSTED_ORIGINS = env_origins(
+    "DJANGO_CSRF_TRUSTED_ORIGINS", "https://*.onrender.com"
+)
 
 INSTALLED_APPS = [
     # auth and contenttypes are required by DRF's throttling, which resolves
@@ -89,7 +110,7 @@ REST_FRAMEWORK = {
 }
 
 # The React client is served from a different origin in every environment.
-CORS_ALLOWED_ORIGINS = env_list(
+CORS_ALLOWED_ORIGINS = env_origins(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
 CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://.*\.vercel\.app$"]
