@@ -214,6 +214,7 @@ export default function App() {
                         dayNumber={index + 1}
                         totalDays={plan.log_days.length}
                         inputs={plan.inputs}
+                        shippingNumber={plan.share_id ?? "—"}
                         highlightSegment={highlight}
                         onHoverSegment={setHighlight}
                       />

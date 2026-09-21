@@ -357,6 +357,22 @@ class DailyLogSheets(unittest.TestCase):
                     "consecutive remarks repeat the same place",
                 )
 
+    def test_each_sheet_can_name_where_the_day_started_and_ended(self):
+        """395.8(d) asks for From and To on every page.
+
+        The sheet derives them from the first and last located entry, so every
+        day must carry at least one entry with a place name.
+        """
+        plan = make_plan(200, 1600)
+        for seg in plan.segments:
+            seg.location = seg.location or "Somewhere, US"
+
+        for log_day in build_log_days(plan.segments):
+            located = [e for e in log_day.entries if e.location]
+            self.assertTrue(
+                located, f"{log_day.day} has no entry that names a place",
+            )
+
     def test_every_stop_is_named_in_the_remarks(self):
         plan = make_plan(200, 1600)
         for log_day in build_log_days(plan.segments):

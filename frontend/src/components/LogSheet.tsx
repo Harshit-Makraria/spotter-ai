@@ -13,14 +13,14 @@ const HOUR_WIDTH = 34;
 const GRID_WIDTH = 24 * HOUR_WIDTH;
 const GRID_RIGHT = GRID_LEFT + GRID_WIDTH;
 const ROW_HEIGHT = 27;
-const GRID_TOP = 210;
+const GRID_TOP = 266;
 const GRID_BOTTOM = GRID_TOP + 4 * ROW_HEIGHT;
 
 const REMARKS_TOP = GRID_BOTTOM + 34;
 const REMARKS_HEIGHT = 26;
 
 const VIEW_WIDTH = 1100;
-const VIEW_HEIGHT = 560;
+const VIEW_HEIGHT = 650;
 
 const ROWS: { status: DutyStatus; line: number; label: string[] }[] = [
   { status: "off_duty", line: 1, label: ["Off", "Duty"] },
@@ -56,6 +56,8 @@ interface Props {
   inputs: TripInputs;
   carrier?: string;
   driver?: string;
+  /** Trip reference used as the manifest number on the sheet. */
+  shippingNumber?: string;
   highlightSegment?: number | null;
   onHoverSegment?: (index: number | null) => void;
 }
@@ -67,6 +69,7 @@ export function LogSheet({
   inputs,
   carrier = "Spotter AI Logistics",
   driver = "—",
+  shippingNumber = "—",
   highlightSegment,
   onHoverSegment,
 }: Props) {
@@ -77,6 +80,15 @@ export function LogSheet({
     ROWS.forEach((row, index) => map.set(row.status, index));
     return map;
   }, []);
+
+  /** Where this sheet's day began and ended, for the From/To fields. */
+  const { from, to } = useMemo(() => {
+    const named = day.entries.filter((entry) => entry.location);
+    return {
+      from: named[0]?.location || inputs.current_location,
+      to: named[named.length - 1]?.location || inputs.dropoff_location,
+    };
+  }, [day.entries, inputs.current_location, inputs.dropoff_location]);
 
   /** Vertical connectors between consecutive duty statuses. */
   const connectors = useMemo(() => {
@@ -121,31 +133,53 @@ export function LogSheet({
         SHEET {dayNumber} OF {totalDays}
       </text>
 
+      {/* Row 1 — date, and where the day's driving began and ended. */}
       <HeaderField x={30} y={92} width={58} value={month} caption="(MONTH)" />
       <HeaderField x={96} y={92} width={48} value={dayOfMonth} caption="(DAY)" />
       <HeaderField x={152} y={92} width={66} value={year} caption="(YEAR)" />
+      <HeaderField x={264} y={92} width={288} value={from} caption="FROM" />
+      <HeaderField x={570} y={92} width={288} value={to} caption="TO" />
+
+      {/* Row 2 — 395.8(d): miles, vehicle numbers, certification. */}
       <HeaderField
-        x={250} y={92} width={168}
+        x={30} y={148} width={172}
         value={day.miles_driven ? day.miles_driven.toFixed(0) : "0"}
         caption="(TOTAL MILES DRIVING TODAY)"
       />
       <HeaderField
-        x={440} y={92} width={210} value="—"
-        caption="VEHICLE NUMBERS—(SHOW EACH UNIT)"
+        x={220} y={148} width={172}
+        value={day.miles_driven ? day.miles_driven.toFixed(0) : "0"}
+        caption="(TOTAL MILEAGE TODAY)"
       />
       <HeaderField
-        x={676} y={92} width={220} value={driver}
+        x={410} y={148} width={230} value="—"
+        caption="TRUCK/TRACTOR & TRAILER NUMBERS"
+      />
+      <HeaderField
+        x={676} y={148} width={220} value={driver}
         caption="(DRIVER'S SIGNATURE IN FULL)"
         note="I certify that these entries are true and correct"
       />
 
-      <HeaderField x={30} y={148} width={330} value={carrier} caption="(NAME OF CARRIER OR CARRIERS)" />
+      {/* Row 3 — carrier identification. */}
       <HeaderField
-        x={382} y={148} width={268}
-        value={inputs.current_location}
-        caption="(HOME TERMINAL / MAIN OFFICE)"
+        x={30} y={204} width={240} value={carrier}
+        caption="(NAME OF CARRIER OR CARRIERS)"
       />
-      <HeaderField x={676} y={148} width={220} value="—" caption="(NAME OF CO-DRIVER)" />
+      <HeaderField
+        x={288} y={204} width={220} value={inputs.current_location}
+        caption="(MAIN OFFICE ADDRESS)"
+      />
+      <HeaderField
+        x={526} y={204} width={220} value={inputs.current_location}
+        caption="(HOME TERMINAL ADDRESS)"
+      />
+      <HeaderField x={764} y={204} width={132} value="—" caption="(NAME OF CO-DRIVER)" />
+
+      {/* 395.8(d)(6): the time base the grid is drawn against. */}
+      <text x={GRID_LEFT} y={GRID_TOP - 22} className="ls-fine">
+        24-hour period starting time: MIDNIGHT — home terminal time
+      </text>
 
       <text x={GRID_RIGHT + 30} y={GRID_TOP - 30} className="ls-caption" textAnchor="middle">
         TOTAL
@@ -333,6 +367,29 @@ export function LogSheet({
           </g>
         );
       })}
+
+      {/* --------- shipping documents: required by 395.8(d)(9) --------- */}
+      <g className="ls-shipping">
+        <text x={24} y={VIEW_HEIGHT - 126} className="ls-caption">
+          SHIPPING DOCUMENTS
+        </text>
+        <HeaderField
+          x={24} y={VIEW_HEIGHT - 100} width={210}
+          value={shippingNumber}
+          caption="DVL OR MANIFEST NO."
+        />
+        <HeaderField
+          x={262} y={VIEW_HEIGHT - 100} width={330}
+          value={`${inputs.pickup_location} — general freight`}
+          caption="SHIPPER & COMMODITY"
+        />
+        <text x={620} y={VIEW_HEIGHT - 104} className="ls-fine">
+          Enter name of place you reported and where released from work,
+        </text>
+        <text x={620} y={VIEW_HEIGHT - 92} className="ls-fine">
+          and when and where each change of duty occurred.
+        </text>
+      </g>
 
       {/* ---------------- recap ---------------- */}
       <g className="ls-recap">
