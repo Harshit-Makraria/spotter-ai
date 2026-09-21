@@ -9,6 +9,9 @@ import type { TripPlan, TripRequest } from "./types";
 
 type Tab = "map" | "logs" | "itinerary";
 
+/** Comfortably inside Render's 15-minute idle timeout, without spamming it. */
+const KEEP_WARM_INTERVAL_MS = 10 * 60 * 1000;
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "map", label: "Route & stops" },
   { id: "logs", label: "Daily logs" },
@@ -30,9 +33,24 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  // Nudge the free-tier API awake so the first plan is not stuck behind a cold start.
+  // The free-tier API sleeps after 15 minutes idle. Ping on load so the first
+  // plan is not stuck behind a cold start, then keep a heartbeat going while
+  // the tab is actually being looked at -- so leaving the page open and coming
+  // back later does not hit a cold server. A hidden tab stays quiet and pings
+  // again the moment it is brought forward.
   useEffect(() => {
-    ping().catch(() => undefined);
+    const beat = () => {
+      if (document.visibilityState === "visible") ping().catch(() => undefined);
+    };
+
+    beat();
+    const timer = window.setInterval(beat, KEEP_WARM_INTERVAL_MS);
+    document.addEventListener("visibilitychange", beat);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", beat);
+    };
   }, []);
 
   // Restore a shared trip from its permalink.
