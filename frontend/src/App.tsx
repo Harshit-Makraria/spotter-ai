@@ -1,52 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, loadTrip, ping, planTrip } from "./api";
-import { DutyTimeline } from "./components/DutyTimeline";
-import { Itinerary } from "./components/Itinerary";
-import { LogSheet } from "./components/LogSheet";
-import { RouteMap } from "./components/RouteMap";
-import {
-  ComplianceBadge,
-  CompliancePanel,
-  HosClocks,
-  KpiRow,
-} from "./components/Summary";
-import { TripForm } from "./components/TripForm";
-import {
-  ArrowRightIcon,
-  LinkIcon,
-  ListIcon,
-  MapPinIcon,
-  MoonIcon,
-  PrintIcon,
-  RouteIcon,
-  SheetIcon,
-  ShieldIcon,
-  SunIcon,
-  TruckIcon,
-} from "./components/icons";
-import type { TripPlan, TripRequest } from "./types";
-
-type Tab = "overview" | "logs" | "itinerary" | "compliance";
-
-const TABS: { id: Tab; label: string; icon: typeof RouteIcon }[] = [
-  { id: "overview", label: "Overview", icon: RouteIcon },
-  { id: "logs", label: "Daily logs", icon: SheetIcon },
-  { id: "itinerary", label: "Itinerary", icon: ListIcon },
-  { id: "compliance", label: "Compliance", icon: ShieldIcon },
-];
+import { useCallback, useEffect, useState } from "react";
+import { ApiError, loadTrip, ping, planTrip, recentTrips } from "./api";
+import { AlertIcon, LinkIcon, MenuIcon, PrintIcon, SparkIcon } from "./components/icons";
+import { Sidebar, type Theme, type View } from "./components/Sidebar";
+import { blankTrip } from "./components/TripForm";
+import type { RecentTrip, TripPlan, TripRequest } from "./types";
+import { ComplianceView } from "./views/ComplianceView";
+import { LogsView } from "./views/LogsView";
+import { OverviewView } from "./views/OverviewView";
+import { PlannerView } from "./views/PlannerView";
+import { RouteView } from "./views/RouteView";
 
 /** Comfortably inside Render's 15-minute idle timeout, without spamming it. */
 const KEEP_WARM_INTERVAL_MS = 10 * 60 * 1000;
 const THEME_KEY = "eld-theme";
 
-type Theme = "light" | "dark";
+const VIEW_TITLES: Record<View, string> = {
+  planner: "New trip",
+  overview: "Overview",
+  route: "Route & stops",
+  logs: "Daily logs",
+  compliance: "Compliance",
+};
 
-function readStoredTheme(): Theme {
+type ApiState = "online" | "waking" | "offline";
+
+function initialTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    /* private mode, blocked storage — fall through to the system preference */
+    /* private mode or blocked storage — fall back to the system setting */
   }
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
@@ -58,404 +41,249 @@ function shareIdFromUrl(): string | null {
 
 export default function App() {
   const [plan, setPlan] = useState<TripPlan | null>(null);
+  const [draft, setDraft] = useState<TripRequest>(blankTrip);
+  const [view, setView] = useState<View>("planner");
   const [loading, setLoading] = useState(false);
-  const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
   const [highlight, setHighlight] = useState<number | null>(null);
+  const [recent, setRecent] = useState<RecentTrip[]>([]);
+  const [api, setApi] = useState<ApiState>("waking");
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [theme, setTheme] = useState<Theme>(readStoredTheme);
-  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
       localStorage.setItem(THEME_KEY, theme);
     } catch {
-      /* not being able to remember the choice is not worth failing over */
+      /* not remembering the choice is not worth failing over */
     }
   }, [theme]);
 
-  // The free-tier API sleeps after 15 minutes idle. Ping on load so the first
-  // plan is not stuck behind a cold start, then keep a heartbeat going while
-  // the tab is actually being looked at. A hidden tab stays quiet.
+  const refreshRecent = useCallback(() => {
+    recentTrips().then(setRecent).catch(() => undefined);
+  }, []);
+
+  // Render's free tier sleeps after 15 minutes idle. Ping on load so the first
+  // plan is not stuck behind a cold start, and keep a heartbeat going while the
+  // tab is being looked at. A hidden tab stays quiet.
   useEffect(() => {
     const beat = () => {
-      if (document.visibilityState === "visible") ping().catch(() => undefined);
+      if (document.visibilityState !== "visible") return;
+      ping()
+        .then(() => setApi("online"))
+        .catch(() => setApi("offline"));
     };
     beat();
+    refreshRecent();
     const timer = window.setInterval(beat, KEEP_WARM_INTERVAL_MS);
     document.addEventListener("visibilitychange", beat);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", beat);
     };
+  }, [refreshRecent]);
+
+  const open = useCallback((shareId: string) => {
+    setLoading(true);
+    setError(null);
+    setMenuOpen(false);
+    loadTrip(shareId)
+      .then((result) => {
+        setPlan(result);
+        setView("overview");
+        window.history.replaceState(null, "", `/t/${shareId}`);
+      })
+      .catch((err: ApiError) => setError(err.message))
+      .finally(() => setLoading(false));
   }, []);
 
   // Restore a shared trip from its permalink.
   useEffect(() => {
     const shareId = shareIdFromUrl();
-    if (!shareId) return;
-    setLoading(true);
-    loadTrip(shareId)
-      .then(setPlan)
-      .catch((err: ApiError) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+    if (shareId) open(shareId);
+  }, [open]);
 
-  const submit = useCallback(async (request: TripRequest) => {
-    setLoading(true);
-    setError(null);
-    setHighlight(null);
-
-    const slowTimer = window.setTimeout(() => setWaking(true), 3500);
-    try {
-      const result = await planTrip(request);
-      setPlan(result);
-      setTab("overview");
-      if (result.share_id) {
-        window.history.replaceState(null, "", `/t/${result.share_id}`);
+  const submit = useCallback(
+    async (request: TripRequest) => {
+      setLoading(true);
+      setError(null);
+      setHighlight(null);
+      try {
+        const result = await planTrip(request);
+        setPlan(result);
+        setView("overview");
+        setApi("online");
+        if (result.share_id) window.history.replaceState(null, "", `/t/${result.share_id}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        refreshRecent();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Something went wrong while planning the trip.");
+        if (err instanceof ApiError && err.status === 0) setApi("offline");
+      } finally {
+        setLoading(false);
       }
-      window.requestAnimationFrame(() =>
-        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      );
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Something went wrong while planning the trip.",
-      );
-    } finally {
-      window.clearTimeout(slowTimer);
-      setWaking(false);
-      setLoading(false);
-    }
-  }, []);
+    },
+    [refreshRecent],
+  );
 
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+  const navigate = (next: View) => {
+    setView(next);
+    setMenuOpen(false);
+    setError(null);
+    window.scrollTo({ top: 0 });
   };
 
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard access can be refused; the URL is still in the address bar */
+    }
+  };
+
+  const showTrip = plan && view !== "planner";
+  const crumb = showTrip
+    ? `${plan.places.pickup.name.split(",")[0]} → ${plan.places.dropoff.name.split(",")[0]}`
+    : null;
+
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark"><TruckIcon size={19} /></span>
-          <div>
-            <div className="brand-name">Spotter ELD</div>
-            <div className="brand-sub">Trip Planner</div>
-          </div>
-        </div>
+    <div className={`shell${menuOpen ? " is-menu-open" : ""}`}>
+      <Sidebar
+        view={view}
+        plan={plan}
+        recent={recent}
+        theme={theme}
+        onNavigate={navigate}
+        onOpenRecent={open}
+        onTheme={setTheme}
+      />
+      {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
 
-        {plan && (
-          <nav className="nav" role="tablist" aria-label="Trip views">
-            {TABS.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                role="tab"
-                aria-selected={tab === id}
-                className={tab === id ? "is-active" : ""}
-                onClick={() => setTab(id)}
-              >
-                <Icon size={15} />
-                {label}
-                {id === "logs" && (
-                  <span className="nav-badge">{plan.log_days.length}</span>
-                )}
-              </button>
-            ))}
-          </nav>
-        )}
-
-        <div className="topbar-actions">
-          {plan && (
-            <>
-              <button type="button" className="pill-btn" onClick={copyLink}>
-                <LinkIcon size={15} />
-                {copied ? "Copied" : "Share"}
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => window.print()}
-                aria-label="Print or save log sheets as PDF"
-              >
-                <PrintIcon size={16} />
-              </button>
-            </>
-          )}
+      <div className="main">
+        <header className="topbar">
           <button
             type="button"
-            className="icon-btn"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            className="btn is-icon menu-btn"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open navigation"
           >
-            {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            <MenuIcon size={18} />
           </button>
-        </div>
-      </header>
 
-      <div className="page">
-        <div className="page-head">
-          <div className="page-title">
-            <div>
-              <h1>{plan ? "Trip Plan" : "Plan a compliant trip"}</h1>
-              {plan ? (
-                <p>
-                  <span className="route-chip">
-                    <i className="dot" style={{ background: "var(--ok)" }} />
-                    {plan.places.pickup.name}
-                  </span>
-                  <ArrowRightIcon size={13} className="arrow" />
-                  <span className="route-chip">
-                    <i className="dot" style={{ background: "var(--bad)" }} />
-                    {plan.places.dropoff.name}
-                  </span>
-                  <ComplianceBadge plan={plan} />
-                </p>
-              ) : (
-                <p>Hours-of-service routing and DOT daily logs · 49 CFR Part 395</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {plan && !loading && <KpiRow plan={plan} />}
-
-        <div className="board" ref={resultsRef}>
-          <aside className="rail">
-            <section className="card">
-              <div className="card-head">
-                <div>
-                  <h2>Trip details</h2>
-                  <p>Four inputs, then the clocks do the rest</p>
-                </div>
-              </div>
-              <div className="card-body">
-                <TripForm onSubmit={submit} loading={loading} />
-              </div>
-            </section>
-
-            {plan && !loading && (
-              <section className="card">
-                <div className="card-head">
-                  <div>
-                    <h3>Hours of service</h3>
-                    <p>Where the clocks stand on arrival</p>
-                  </div>
-                </div>
-                <div className="card-body">
-                  <HosClocks plan={plan} />
-                </div>
-              </section>
-            )}
-          </aside>
-
-          <main className="stack">
-            {error && (
-              <div className="alert" role="alert">
-                <div>
-                  <strong>Could not plan that trip</strong>
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
-
-            {loading && <LoadingState waking={waking} />}
-            {!loading && !plan && !error && <EmptyState />}
-
-            {plan && !loading && (
+          <nav className="crumbs" aria-label="Breadcrumb">
+            <span>Trips</span>
+            <span className="sep">/</span>
+            {crumb && (
               <>
-                <section className={`panel${tab === "overview" ? "" : " is-hidden"}`}
-                  style={{ display: tab === "overview" ? "flex" : "none",
-                           flexDirection: "column", gap: 16 }}>
-                  <div className="card map-card">
-                    <RouteMap
-                      plan={plan}
-                      highlightSegment={highlight}
-                      onHoverSegment={setHighlight}
-                    />
-                    <div className="map-overlay at-top-left">
-                      <RouteProgress plan={plan} />
-                    </div>
-                  </div>
-
-                  <div className="card timeline-card">
-                    <div className="card-head">
-                      <div>
-                        <h3>Duty status timeline</h3>
-                        <p>Every day of the trip, midnight to midnight</p>
-                      </div>
-                      <span className="chip is-accent">
-                        {plan.log_days.length} day{plan.log_days.length === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                    <div className="card-body">
-                      <DutyTimeline
-                        plan={plan}
-                        highlightSegment={highlight}
-                        onHoverSegment={setHighlight}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  className={`panel is-logs`}
-                  style={{ display: tab === "logs" ? "block" : "none" }}
-                >
-                  <div className="sheets">
-                    {plan.log_days.map((day, index) => (
-                      <article className="card" key={day.date}>
-                        <div className="card-head">
-                          <div>
-                            <h2>
-                              {new Date(`${day.date}T00:00:00`).toLocaleDateString(
-                                undefined,
-                                { weekday: "long", month: "long", day: "numeric",
-                                  year: "numeric" },
-                              )}
-                            </h2>
-                            <p>
-                              Sheet {index + 1} of {plan.log_days.length} ·{" "}
-                              {day.miles_driven.toFixed(0)} miles driving ·{" "}
-                              {day.total_on_duty_hours} h on duty
-                            </p>
-                          </div>
-                          <span className={`chip ${day.balanced ? "is-ok" : "is-bad"}`}>
-                            {day.balanced ? "Totals 24:00" : "Does not total 24:00"}
-                          </span>
-                        </div>
-                        <div className="sheet-scroll">
-                          <LogSheet
-                            day={day}
-                            dayNumber={index + 1}
-                            totalDays={plan.log_days.length}
-                            inputs={plan.inputs}
-                            shippingNumber={plan.share_id ?? "—"}
-                            highlightSegment={highlight}
-                            onHoverSegment={setHighlight}
-                          />
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                </section>
-
-                <section
-                  className="panel"
-                  style={{ display: tab === "itinerary" ? "block" : "none" }}
-                >
-                  <div className="card">
-                    <div className="card-head">
-                      <div>
-                        <h2>Stop-by-stop</h2>
-                        <p>Every duty change, in order</p>
-                      </div>
-                      <span className="chip">{plan.stops.length} stops</span>
-                    </div>
-                    <div className="card-body">
-                      <Itinerary
-                        plan={plan}
-                        highlightSegment={highlight}
-                        onHoverSegment={setHighlight}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <section
-                  className="panel"
-                  style={{ display: tab === "compliance" ? "block" : "none" }}
-                >
-                  <div className="card">
-                    <div className="card-head">
-                      <div>
-                        <h2>Compliance report</h2>
-                        <p>Each rule re-checked against the finished schedule</p>
-                      </div>
-                      <ComplianceBadge plan={plan} />
-                    </div>
-                    <div className="card-body">
-                      <CompliancePanel plan={plan} />
-                    </div>
-                  </div>
-                </section>
+                <strong>{crumb}</strong>
+                <span className="sep">/</span>
               </>
             )}
-          </main>
-        </div>
-      </div>
+            <span>{VIEW_TITLES[view]}</span>
+          </nav>
 
-      <footer className="footer">
-        <span>
-          Routing by OpenRouteService / OSRM · tiles © Esri, OpenStreetMap contributors
-        </span>
-        <span>
-          Rules from FMCSA&rsquo;s <em>Interstate Truck Driver&rsquo;s Guide to Hours of
-          Service</em>
-        </span>
-      </footer>
+          <div className="topbar-actions">
+            <span className={`status-dot${api === "waking" ? " is-waking" : api === "offline" ? " is-down" : ""}`}>
+              <i />
+              <span>{api === "online" ? "API online" : api === "waking" ? "Waking API" : "API unreachable"}</span>
+            </span>
+            {showTrip && (
+              <>
+                <button type="button" className="btn" onClick={copyLink}>
+                  <LinkIcon size={15} />
+                  <span>{copied ? "Copied" : "Share"}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn is-dark"
+                  onClick={() => {
+                    setView("logs");
+                    window.setTimeout(() => window.print(), 250);
+                  }}
+                >
+                  <PrintIcon size={15} />
+                  <span>Export logs</span>
+                </button>
+              </>
+            )}
+          </div>
+        </header>
+
+        <main className="content">
+          {error && (
+            <div className="alert" role="alert">
+              <AlertIcon size={18} />
+              <div>
+                <strong>Could not plan that trip</strong>
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+
+          {loading ? (
+            <Loading waking={api !== "online"} />
+          ) : !plan || view === "planner" ? (
+            <PlannerView draft={draft} onChange={setDraft} onSubmit={submit} loading={loading} />
+          ) : view === "overview" ? (
+            <OverviewView
+              key={`overview-${plan.share_id}`}
+              plan={plan}
+              highlight={highlight}
+              onHighlight={setHighlight}
+              onOpenRoute={() => navigate("route")}
+            />
+          ) : view === "route" ? (
+            <RouteView key={`route-${plan.share_id}`} plan={plan} highlight={highlight} onHighlight={setHighlight} />
+          ) : view === "logs" ? (
+            <LogsView key={`logs-${plan.share_id}`} plan={plan} highlight={highlight} onHighlight={setHighlight} />
+          ) : (
+            <ComplianceView key={`compliance-${plan.share_id}`} plan={plan} />
+          )}
+        </main>
+
+        <footer className="footer">
+          <span>Routing: OpenRouteService / OSRM · Tiles © Esri, OpenStreetMap contributors</span>
+          <span>Rules from FMCSA&rsquo;s Interstate Truck Driver&rsquo;s Guide to Hours of Service</span>
+        </footer>
+      </div>
     </div>
   );
 }
 
-/** Origin → destination progress, in the shape of the DHL tracking reference. */
-function RouteProgress({ plan }: { plan: TripPlan }) {
-  const { summary, places } = plan;
-  const start = new Date(summary.start_time);
-  const end = new Date(summary.end_time);
-
+function Loading({ waking }: { waking: boolean }) {
   return (
-    <div className="progress-route">
-      <div className="progress-ends">
-        <span>{places.current.name}</span>
-        <span>{places.dropoff.name}</span>
-      </div>
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: "100%" }} />
-      </div>
-      <div className="progress-meta">
-        <span>{start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-        <span className="num">{Math.round(summary.total_miles).toLocaleString()} mi</span>
-        <span>{end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-      </div>
-    </div>
-  );
-}
-
-function LoadingState({ waking }: { waking: boolean }) {
-  return (
-    <>
-      <div className="skeleton" style={{ height: 420 }} />
-      <div className="card">
-        <div className="loading-note">
-          <strong>{waking ? "Waking the planning service…" : "Building route…"}</strong>
-          <span>
-            {waking
-              ? "The free-tier API sleeps when idle. This takes a few seconds the first time."
-              : "Geocoding locations, routing, then simulating the duty clocks."}
-          </span>
+    <div className="view">
+      <section className="card">
+        <div className="loading-card">
+          <SparkIcon size={22} className="spin" />
+          <div>
+            <strong>{waking ? "Waking the planning service…" : "Planning the trip…"}</strong>
+            <span>
+              {waking
+                ? "The free-tier API sleeps when idle, so the first request takes a little longer."
+                : "Geocoding, routing, then running the duty clocks across the whole trip."}
+            </span>
+          </div>
+          <div className="loading-steps">
+            <span className="tag is-info">Route</span>
+            <span className="tag is-accent">HOS clocks</span>
+            <span className="tag is-ok">Log sheets</span>
+          </div>
         </div>
+      </section>
+      <div className="kpis">
+        {[0, 1, 2, 3].map((index) => <div key={index} className="skeleton" style={{ height: 134 }} />)}
       </div>
-    </>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="card">
-      <div className="state">
-        <span className="state-art"><MapPinIcon size={40} /></span>
-        <h2>Ready when you are</h2>
-        <p>
-          Enter the driver&rsquo;s current location, the pickup and drop-off, and how many
-          hours of the cycle are already used. You&rsquo;ll get a routed map with every
-          required stop and a filled-in log sheet for each day.
-        </p>
-        <p className="state-hint">Or pick one of the example trips on the left.</p>
+      <div className="grid-main">
+        <div className="skeleton" style={{ height: 520 }} />
+        <div className="col">
+          <div className="skeleton" style={{ height: 250 }} />
+          <div className="skeleton" style={{ height: 250 }} />
+        </div>
       </div>
     </div>
   );

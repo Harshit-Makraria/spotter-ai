@@ -1,45 +1,43 @@
 import type { Segment, TripPlan } from "../types";
 import { STOP_STYLE } from "./RouteMap";
 
-function clock(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const clock = (iso: string) =>
+  new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
-function dayLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
+const dayLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 
-interface Props {
-  plan: TripPlan;
+interface HoverProps {
   highlightSegment: number | null;
   onHoverSegment: (index: number | null) => void;
 }
 
-export function Itinerary({ plan, highlightSegment, onHoverSegment }: Props) {
-  let currentDay = "";
+/** Every duty change in order, grouped under sticky day headers. */
+export function Itinerary({ plan, highlightSegment, onHoverSegment }: { plan: TripPlan } & HoverProps) {
+  const days = new Map<string, Segment[]>();
+  for (const segment of plan.segments) {
+    const key = new Date(segment.start).toDateString();
+    days.set(key, [...(days.get(key) ?? []), segment]);
+  }
 
   return (
     <ol className="itinerary">
-      {plan.segments.map((segment) => {
-        const day = new Date(segment.start).toDateString();
-        const newDay = day !== currentDay;
-        currentDay = day;
-
+      {[...days.values()].map((segments) => {
+        const miles = segments.reduce((sum, s) => sum + (s.kind === "drive" ? s.miles : 0), 0);
         return (
-          <li key={segment.index}>
-            {newDay && <div className="itinerary-day">{dayLabel(segment.start)}</div>}
-            <Row
-              segment={segment}
-              active={highlightSegment === segment.index}
-              onHover={onHoverSegment}
-            />
+          <li key={segments[0].start}>
+            <div className="itinerary-day">
+              <span>{dayLabel(segments[0].start)}</span>
+              <span className="num">{Math.round(miles)} mi</span>
+            </div>
+            {segments.map((segment) => (
+              <Row
+                key={segment.index}
+                segment={segment}
+                active={highlightSegment === segment.index}
+                onHover={onHoverSegment}
+              />
+            ))}
           </li>
         );
       })}
@@ -70,15 +68,47 @@ function Row({
         {style.glyph}
       </span>
       <div className="itinerary-body">
-        <strong>
-          {isDrive ? `Drive ${Math.round(segment.miles)} mi` : segment.title}
-        </strong>
+        <strong>{isDrive ? `Drive ${Math.round(segment.miles)} mi` : segment.title}</strong>
         <span>
           {segment.location || segment.label}
           {isDrive ? "" : ` · mile ${Math.round(segment.start_mile)}`}
         </span>
       </div>
-      <span className={`chip${isDrive ? "" : " is-accent"}`}>{segment.hours} h</span>
+      <span className={`tag is-mono${isDrive ? "" : " is-accent"}`}>{segment.hours} h</span>
     </div>
+  );
+}
+
+/** The stops only — pickup, fuel, breaks, rests, drop-off — for the overview. */
+export function StopList({ plan, highlightSegment, onHoverSegment }: { plan: TripPlan } & HoverProps) {
+  return (
+    <ul className="stop-list">
+      {plan.stops.map((stop) => {
+        const style = STOP_STYLE[stop.kind];
+        const when = new Date(stop.start);
+        return (
+          <li
+            key={stop.index}
+            className={`stop-row${highlightSegment === stop.index ? " is-active" : ""}`}
+            onMouseEnter={() => onHoverSegment(stop.index)}
+            onMouseLeave={() => onHoverSegment(null)}
+          >
+            <span className="stop-icon" style={{ ["--pin" as string]: style.colour }}>
+              {style.glyph}
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <strong>{stop.title}</strong>
+              <span>{stop.location}</span>
+            </div>
+            <span className="stop-when">
+              {when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+              <small>
+                {when.toLocaleDateString(undefined, { weekday: "short" })} · {stop.hours} h
+              </small>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

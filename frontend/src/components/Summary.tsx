@@ -4,7 +4,6 @@ import {
   CheckIcon,
   ClockIcon,
   CrossIcon,
-  GaugeIcon,
   RouteIcon,
   ShieldIcon,
   TruckIcon,
@@ -12,28 +11,28 @@ import {
 
 const hrs = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
 
-/** A tiny bar chart drawn from real per-day figures, not decoration. */
-function Spark({ values, tone = "currentColor" }: { values: number[]; tone?: string }) {
+/** A small bar chart of real per-day figures — never decoration. */
+function Spark({ values, tone }: { values: number[]; tone: string }) {
   if (values.length < 2) return null;
   const max = Math.max(...values, 1);
-  const gap = 2;
+  const gap = 3;
   const width = 100;
-  const barWidth = (width - gap * (values.length - 1)) / values.length;
+  const bar = (width - gap * (values.length - 1)) / values.length;
 
   return (
-    <svg className="kpi-spark" viewBox={`0 0 ${width} 26`} preserveAspectRatio="none">
+    <svg className="kpi-spark" viewBox={`0 0 ${width} 30`} preserveAspectRatio="none" aria-hidden="true">
       {values.map((value, index) => {
-        const height = Math.max(2, (value / max) * 24);
+        const height = Math.max(3, (value / max) * 28);
         return (
           <rect
             key={index}
-            x={index * (barWidth + gap)}
-            y={26 - height}
-            width={barWidth}
+            x={index * (bar + gap)}
+            y={30 - height}
+            width={bar}
             height={height}
-            rx={1.6}
+            rx={2}
             fill={tone}
-            opacity={0.25 + (value / max) * 0.75}
+            opacity={0.3 + (value / max) * 0.7}
           />
         );
       })}
@@ -42,50 +41,39 @@ function Spark({ values, tone = "currentColor" }: { values: number[]; tone?: str
 }
 
 export function KpiRow({ plan }: { plan: TripPlan }) {
-  const { summary, log_days: days, inputs } = plan;
+  const { summary, log_days: days } = plan;
   const arrival = new Date(summary.end_time);
-
-  const milesPerDay = days.map((day) => day.miles_driven);
-  const drivingPerDay = days.map((day) => day.totals.driving);
-  const onDutyPerDay = days.map((day) => day.total_on_duty_hours);
-  const cyclePerDay = days.map((day) => day.cycle_hours_used);
-
-  const cycleUsedPct = Math.round(
-    (summary.cycle_hours_used_end / inputs.cycle_limit_hours) * 100,
-  );
+  const departure = new Date(summary.start_time);
+  const stops = summary.fuel_stops + summary.rest_breaks + summary.daily_resets + summary.restarts;
 
   return (
     <section className="kpis" aria-label="Trip summary">
       <article className="kpi is-hero">
         <div className="kpi-top">
-          <span className="kpi-label">Distance</span>
+          <span className="kpi-label">Total distance</span>
           <span className="kpi-icon"><RouteIcon size={17} /></span>
         </div>
         <span className="kpi-value">
           {Math.round(summary.total_miles).toLocaleString()}<small>mi</small>
         </span>
-        <span className="kpi-sub">{plan.route.provider.split("/")[0]} routing</span>
-        <Spark values={milesPerDay} tone="rgba(43,26,2,0.55)" />
+        <span className="kpi-foot">
+          <span className="delta">{plan.route.provider.startsWith("openroute") ? "Truck route" : "Road route"}</span>
+          {days.length} {days.length === 1 ? "day" : "days"} on the road
+        </span>
+        <Spark values={days.map((day) => day.miles_driven)} tone="rgba(43,26,2,0.6)" />
       </article>
 
       <article className="kpi">
         <div className="kpi-top">
-          <span className="kpi-label">Driving</span>
+          <span className="kpi-label">Driving time</span>
           <span className="kpi-icon"><TruckIcon size={17} /></span>
         </div>
         <span className="kpi-value">{hrs(summary.driving_hours)}<small>h</small></span>
-        <span className="kpi-sub">{hrs(summary.on_duty_hours)} h on duty</span>
-        <Spark values={drivingPerDay} tone="var(--ok)" />
-      </article>
-
-      <article className="kpi">
-        <div className="kpi-top">
-          <span className="kpi-label">Trip time</span>
-          <span className="kpi-icon"><ClockIcon size={17} /></span>
-        </div>
-        <span className="kpi-value">{hrs(summary.total_elapsed_hours)}<small>h</small></span>
-        <span className="kpi-sub">door to door</span>
-        <Spark values={onDutyPerDay} tone="var(--accent)" />
+        <span className="kpi-foot">
+          <span className="delta is-ok">{hrs(summary.on_duty_hours)} h</span>
+          on duty, not driving
+        </span>
+        <Spark values={days.map((day) => day.totals.driving)} tone="var(--ok)" />
       </article>
 
       <article className="kpi">
@@ -93,41 +81,28 @@ export function KpiRow({ plan }: { plan: TripPlan }) {
           <span className="kpi-label">Arrival</span>
           <span className="kpi-icon"><CalendarIcon size={17} /></span>
         </div>
-        <span className="kpi-value" style={{ fontSize: "1.28rem" }}>
-          {arrival.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-        </span>
-        <span className="kpi-sub">
-          {arrival.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
-          {" · "}
-          {summary.log_days} log sheet{summary.log_days === 1 ? "" : "s"}
-        </span>
-      </article>
-
-      <article className="kpi is-ink">
-        <div className="kpi-top">
-          <span className="kpi-label">Cycle used</span>
-          <span className={`delta ${cycleUsedPct > 85 ? "is-down" : "is-up"}`}>
-            {cycleUsedPct}%
-          </span>
-        </div>
         <span className="kpi-value">
-          {hrs(summary.cycle_hours_remaining_end)}<small>h left</small>
+          {arrival.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+          <small>
+            {arrival.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+          </small>
         </span>
-        <span className="kpi-sub">of {inputs.cycle_limit_hours} h on arrival</span>
-        <Spark values={cyclePerDay} tone="rgba(242,245,251,0.55)" />
+        <span className="kpi-foot">
+          <span className="delta is-warn">{hrs(summary.total_elapsed_hours)} h</span>
+          door to door from{" "}
+          {departure.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+        </span>
+        <Spark values={days.map((day) => day.total_on_duty_hours)} tone="var(--accent)" />
       </article>
 
       <article className="kpi">
         <div className="kpi-top">
           <span className="kpi-label">Required stops</span>
-          <span className="kpi-icon"><GaugeIcon size={17} /></span>
+          <span className="kpi-icon"><ClockIcon size={17} /></span>
         </div>
-        <span className="kpi-value">
-          {summary.fuel_stops + summary.rest_breaks + summary.daily_resets + summary.restarts}
-        </span>
-        <span className="kpi-sub">
-          {summary.fuel_stops} fuel · {summary.rest_breaks} break ·{" "}
-          {summary.daily_resets} reset
+        <span className="kpi-value">{stops}</span>
+        <span className="kpi-foot">
+          {summary.fuel_stops} fuel · {summary.rest_breaks} break · {summary.daily_resets} reset
           {summary.restarts ? ` · ${summary.restarts} restart` : ""}
         </span>
       </article>
@@ -138,7 +113,7 @@ export function KpiRow({ plan }: { plan: TripPlan }) {
 /**
  * Recovers the busiest duty period in the plan.
  *
- * Trip totals clamped to the limit would read "11 / 11" on every multi-day
+ * Trip totals clamped to each limit would read "11 / 11" on every multi-day
  * trip, which says nothing. What matters is how hard the hardest single duty
  * period pushes each clock, so the schedule is walked to find it.
  */
@@ -195,48 +170,23 @@ export function HosClocks({ plan }: { plan: TripPlan }) {
   const { peakDriving, peakWindow, longestDriveRun } = peakDutyPeriod(plan);
 
   const clocks = [
-    {
-      name: "11-hour driving",
-      cfr: "395.3(a)(3)",
-      used: Math.min(11, peakDriving),
-      limit: 11,
-      note: "busiest duty period",
-    },
-    {
-      name: "14-hour window",
-      cfr: "395.3(a)(2)",
-      used: Math.min(14, peakWindow),
-      limit: 14,
-      note: "busiest duty period",
-    },
-    {
-      name: "8-hour break clock",
-      cfr: "395.3(a)(3)(ii)",
-      used: Math.min(8, longestDriveRun),
-      limit: 8,
-      note: `${summary.rest_breaks + summary.daily_resets} qualifying break(s)`,
-    },
-    {
-      name: `${inputs.cycle_limit_hours}-hour cycle`,
-      cfr: "395.3(b)",
-      used: summary.cycle_hours_used_end,
-      limit: inputs.cycle_limit_hours,
-      note: `${hrs(summary.cycle_hours_remaining_end)} h remaining`,
-    },
+    { name: "11-hour driving limit", cfr: "395.3(a)(3)", used: Math.min(11, peakDriving), limit: 11,
+      note: "busiest duty period" },
+    { name: "14-hour duty window", cfr: "395.3(a)(2)", used: Math.min(14, peakWindow), limit: 14,
+      note: "busiest duty period" },
+    { name: "Driving before a 30-min break", cfr: "395.3(a)(3)(ii)", used: Math.min(8, longestDriveRun),
+      limit: 8, note: "longest stretch" },
+    { name: `${inputs.cycle_limit_hours}-hour cycle`, cfr: "395.3(b)", used: summary.cycle_hours_used_end,
+      limit: inputs.cycle_limit_hours, note: `${hrs(summary.cycle_hours_remaining_end)} h left on arrival` },
   ];
 
   return (
     <div className="clocks">
       {clocks.map((clock) => {
         const pct = Math.min(100, (clock.used / clock.limit) * 100);
-        // Running right up to a limit is what an efficient plan looks like, so
-        // amber means "at the legal maximum". Red is reserved for an actual
-        // violation, which the audit would have caught.
-        const tone = !plan.compliance.feasible
-          ? "full"
-          : pct > 80
-            ? "warn"
-            : "ok";
+        // Running up to a limit is what an efficient plan looks like, so amber
+        // means "at the legal maximum". Red is kept for an actual violation.
+        const tone = !plan.compliance.feasible ? "full" : pct > 80 ? "warn" : "ok";
         return (
           <div className="clock" key={clock.name}>
             <div className="clock-head">
@@ -257,69 +207,75 @@ export function HosClocks({ plan }: { plan: TripPlan }) {
   );
 }
 
-export function CompliancePanel({ plan }: { plan: TripPlan }) {
-  const { compliance } = plan;
-
+export function ComplianceBanner({ plan }: { plan: TripPlan }) {
+  const ok = plan.compliance.feasible;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div className={`banner${compliance.feasible ? "" : " is-bad"}`}>
-        <span className="banner-badge">
-          {compliance.feasible ? <CheckIcon size={14} /> : <CrossIcon size={14} />}
+    <div className={`banner${ok ? "" : " is-bad"}`}>
+      <span className="banner-badge">{ok ? <CheckIcon size={18} /> : <CrossIcon size={18} />}</span>
+      <div>
+        <strong>{ok ? "This plan is HOS compliant" : "This plan violates hours of service"}</strong>
+        <span>
+          {ok
+            ? "After planning, every clock was re-derived from the finished schedule and checked again."
+            : "The independent audit found the problems listed below."}
         </span>
-        <div>
-          <strong>
-            {compliance.feasible
-              ? "Plan is HOS compliant"
-              : "Plan violates hours of service"}
-          </strong>
-          <span>
-            {compliance.feasible
-              ? "Every rule below was re-checked against the finished schedule."
-              : "Adjust the inputs — details below."}
-          </span>
-        </div>
       </div>
-
-      <ul className="checks">
-        {compliance.checks.map((check) => (
-          <li key={check.rule} className={`check ${check.passed ? "is-pass" : "is-fail"}`}>
-            <span className="check-mark">
-              {check.passed ? <CheckIcon size={11} /> : <CrossIcon size={11} />}
-            </span>
-            <div>
-              <strong>
-                {check.rule}<em>§ {check.cfr}</em>
-              </strong>
-              <p>{check.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-
-      {compliance.violations.length > 0 && (
-        <ul className="note-list is-bad">
-          {compliance.violations.map((violation) => <li key={violation}>{violation}</li>)}
-        </ul>
-      )}
-
-      {compliance.notes.length > 0 && (
-        <ul className="note-list">
-          {compliance.notes.map((note) => <li key={note}>{note}</li>)}
-        </ul>
-      )}
     </div>
   );
 }
 
-export function ComplianceBadge({ plan }: { plan: TripPlan }) {
+export function ComplianceChecks({ plan }: { plan: TripPlan }) {
+  return (
+    <ul className="checks">
+      {plan.compliance.checks.map((check) => (
+        <li key={check.rule} className={`check ${check.passed ? "is-pass" : "is-fail"}`}>
+          <span className="check-mark">
+            {check.passed ? <CheckIcon size={12} /> : <CrossIcon size={12} />}
+          </span>
+          <div>
+            <strong>{check.rule}</strong>
+            <p>{check.detail}</p>
+          </div>
+          <span className="cfr">§ {check.cfr}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The assumptions the plan was built on, stated so a reviewer can check them. */
+export function TripFacts({ plan }: { plan: TripPlan }) {
+  const { inputs } = plan;
+  const facts: [string, string][] = [
+    ["Driver type", "Property-carrying CMV"],
+    ["Cycle rule", `${inputs.cycle_limit_hours} hours / ${inputs.cycle_limit_hours === 70 ? 8 : 7} days`],
+    ["Hours used before departure", `${inputs.cycle_hours_used} h`],
+    ["Driving conditions", "Normal — no adverse-conditions extension"],
+    ["Pickup and drop-off", "1 hour each, on duty"],
+    ["Fuel", "At least every 1,000 miles · 30 min on duty"],
+    ["Average speed", `${inputs.avg_speed_mph} mph`],
+    ["Pre/post-trip inspections", inputs.include_inspections ? "15 min each" : "Not added"],
+    ["Daily rest", "10 hours in the sleeper berth"],
+    ["Log time base", "Home-terminal time, midnight to midnight"],
+  ];
+  return (
+    <ul className="facts">
+      {facts.map(([label, value]) => (
+        <li className="fact" key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ComplianceTag({ plan }: { plan: TripPlan }) {
   const ok = plan.compliance.feasible;
   return (
-    <span
-      className={`chip ${ok ? "is-ok" : "is-bad"}`}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
-    >
-      <ShieldIcon size={11} />
-      {ok ? "Compliant" : "Violation"}
+    <span className={`tag ${ok ? "is-ok" : "is-bad"}`}>
+      <ShieldIcon size={12} />
+      {ok ? "HOS compliant" : "Violation"}
     </span>
   );
 }

@@ -52,6 +52,8 @@ interface Props {
   plan: TripPlan;
   highlightSegment: number | null;
   onHoverSegment: (index: number | null) => void;
+  /** Taller canvas for the dedicated route view. */
+  tall?: boolean;
 }
 
 /** Watches the theme attribute so the basemap follows light/dark. */
@@ -72,7 +74,7 @@ function useMapTone(): "Light" | "Dark" {
   return tone;
 }
 
-export function RouteMap({ plan, highlightSegment, onHoverSegment }: Props) {
+export function RouteMap({ plan, highlightSegment, onHoverSegment, tall = false }: Props) {
   const tone = useMapTone();
   const points = useMemo(
     () => plan.route.geometry as [number, number][],
@@ -92,7 +94,7 @@ export function RouteMap({ plan, highlightSegment, onHoverSegment }: Props) {
       center={centre}
       zoom={5}
       scrollWheelZoom
-      className="route-map"
+      className={`route-map${tall ? " is-tall" : ""}`}
       attributionControl
     >
       {/* Esri's canvas basemaps: free, keyless, and muted enough that the amber

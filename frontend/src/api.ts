@@ -1,4 +1,4 @@
-import type { TripPlan, TripRequest } from "./types";
+import type { RecentTrip, TripPlan, TripRequest } from "./types";
 
 /**
  * In development Vite proxies /api to Django. In production the API lives on a
@@ -76,4 +76,8 @@ export function loadTrip(shareId: string): Promise<TripPlan> {
 /** Wakes a sleeping free-tier dyno so the first real request is fast. */
 export function ping(): Promise<{ status: string }> {
   return request<{ status: string }>("/health/");
+}
+
+export function recentTrips(): Promise<RecentTrip[]> {
+  return request<{ results: RecentTrip[] }>("/trips/recent/").then((body) => body.results);
 }

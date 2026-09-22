@@ -147,3 +147,88 @@ export const SparkIcon = ({ size = 18, className }: IconProps) => (
     <path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5 10.1 12 4.5 10l5.6-1.4z" />
   </svg>
 );
+
+export const GridIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+    <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+    <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+  </svg>
+);
+
+export const PlusIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2.1} className={className}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+export const MenuIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4 7h16M4 12h16M4 17h10" />
+  </svg>
+);
+
+export const AlertIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 4 21 19H3z" />
+    <path d="M12 10v4M12 16.8v.2" />
+  </svg>
+);
+
+export const FuelIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M5 20V5.5A1.5 1.5 0 0 1 6.5 4h6A1.5 1.5 0 0 1 14 5.5V20M4 20h11M5 10h9" />
+    <path d="M14 8h2.2a1.8 1.8 0 0 1 1.8 1.8V16a1.5 1.5 0 0 0 3 0V9l-3-3" />
+  </svg>
+);
+
+export const CompassIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="m15.5 8.5-2 5-5 2 2-5z" />
+  </svg>
+);
+
+export const TurnLeftIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <path d="M17 20v-7a4 4 0 0 0-4-4H6M10 5 6 9l4 4" />
+  </svg>
+);
+
+export const TurnRightIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <path d="M7 20v-7a4 4 0 0 1 4-4h7M14 5l4 4-4 4" />
+  </svg>
+);
+
+export const StraightIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <path d="M12 20V5M7 10l5-5 5 5" />
+  </svg>
+);
+
+export const RampIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <path d="M8 20V11l7-7M10 4h5v5" />
+  </svg>
+);
+
+export const RoundaboutIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <circle cx="12" cy="10" r="4" />
+    <path d="M12 14v7M15 7l3-3" />
+  </svg>
+);
+
+export const UTurnIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} strokeWidth={2} className={className}>
+    <path d="M8 20V9a4 4 0 0 1 8 0v4M12 10l4 4 4-4" />
+  </svg>
+);
+
+export const DownloadIcon = ({ size = 18, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />
+  </svg>
+);

@@ -34,7 +34,7 @@ export function DutyTimeline({ plan, highlightSegment, onHoverSegment }: Props) 
   return (
     <div className="timeline">
       <div className="timeline-scale">
-        <span className="section-label">Day</span>
+        <span className="card-sub" style={{ paddingLeft: 4 }}>Day</span>
         <div className="timeline-hours">
           {HOUR_MARKS.map((hour) => (
             <span
@@ -46,6 +46,7 @@ export function DutyTimeline({ plan, highlightSegment, onHoverSegment }: Props) 
             </span>
           ))}
         </div>
+        <span className="card-sub" style={{ textAlign: "right", paddingRight: 4 }}>On duty</span>
       </div>
 
       {plan.log_days.map((day) => {
@@ -82,6 +83,7 @@ export function DutyTimeline({ plan, highlightSegment, onHoverSegment }: Props) 
                 );
               })}
             </div>
+            <span className="timeline-total">{day.total_on_duty_hours} h</span>
           </div>
         );
       })}

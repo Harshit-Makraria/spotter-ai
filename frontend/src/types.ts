@@ -22,11 +22,32 @@ export interface RouteLeg {
   duration_hours: number;
 }
 
+export type DirectionKind =
+  | "depart"
+  | "arrive"
+  | "left"
+  | "right"
+  | "straight"
+  | "ramp"
+  | "roundabout"
+  | "uturn"
+  | "continue";
+
+export interface Direction {
+  /** 0 = current location to pickup, 1 = pickup to drop-off. */
+  leg: number;
+  text: string;
+  road: string;
+  miles: number;
+  kind: DirectionKind;
+}
+
 export interface RouteInfo {
   distance_miles: number;
   provider: string;
   geometry: [number, number][];
   legs: RouteLeg[];
+  directions?: Direction[];
 }
 
 export interface TripSummary {
@@ -157,4 +178,16 @@ export interface TripRequest {
   avg_speed_mph?: number;
   cycle_limit_hours?: number;
   include_inspections?: boolean;
+}
+
+export interface RecentTrip {
+  share_id: string;
+  created_at: string;
+  current_location: string;
+  pickup_location: string;
+  dropoff_location: string;
+  cycle_hours_used: number;
+  total_miles: number;
+  driving_hours: number;
+  log_day_count: number;
 }
