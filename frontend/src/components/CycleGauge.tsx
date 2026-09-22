@@ -22,7 +22,8 @@ export function CycleGauge({ plan }: { plan: TripPlan }) {
 
   return (
     <div className="gauge">
-      <svg viewBox="0 0 240 130" role="img" aria-label={`${Math.round(share * 100)} percent of the cycle used`}>
+      <div className="gauge-dial">
+      <svg viewBox="0 0 240 124" role="img" aria-label={`${Math.round(share * 100)} percent of the cycle used`}>
         {Array.from({ length: TICKS }).map((_, index) => {
           // Spread the ticks across a half circle, left to right.
           const angle = Math.PI - (index / (TICKS - 1)) * Math.PI;
@@ -45,6 +46,7 @@ export function CycleGauge({ plan }: { plan: TripPlan }) {
         })}
       </svg>
       <div className="gauge-value">{Math.round(share * 100)}%</div>
+      </div>
       <p className="gauge-caption">of the {limit}-hour cycle used on arrival</p>
 
       <div className="gauge-legend">

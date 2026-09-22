@@ -529,7 +529,11 @@ a { color: inherit; }
 .card-body.is-flush { padding: 0; }
 
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-.grid-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.grid-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: stretch; }
+/* The map fills the row, so a taller side column never leaves a gap under it. */
+.grid-main > .map-card { display: flex; flex-direction: column; }
+.grid-main > .map-card .route-map { flex: 1; height: auto; min-height: 520px; }
+.grid-main > .col, .grid-main > .card:not(.map-card) { align-self: start; }
 .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
@@ -610,15 +614,18 @@ a { color: inherit; }
 .gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0 2px; }
 .gauge svg { display: block; width: 100%; max-width: 250px; height: auto; overflow: visible; }
 .gauge-tick { transition: fill var(--slow); }
+.gauge-dial { position: relative; width: 100%; max-width: 250px; }
 .gauge-value {
-  margin-top: -64px;
+  position: absolute;
+  left: 0; right: 0; bottom: 6px;
+  text-align: center;
   font-family: var(--mono);
   font-size: 2rem;
   font-weight: 620;
   letter-spacing: -0.04em;
   line-height: 1;
 }
-.gauge-caption { font-size: 0.76rem; color: var(--text-3); text-align: center; }
+.gauge-caption { margin-top: 8px; font-size: 0.76rem; color: var(--text-3); text-align: center; }
 .gauge-legend {
   display: flex;
   justify-content: space-between;
