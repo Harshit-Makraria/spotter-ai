@@ -12,13 +12,18 @@ required stop, plus a filled-in DOT driver's daily log for each calendar day.
 Give it four things — where the driver is now, where they pick up, where they drop
 off, and how many hours of their 70-hour cycle are already used — and it returns:
 
-- **A route** with the pickup and drop-off, and a marker for every fuel stop,
-  30-minute break, 10-hour reset and 34-hour restart the regulations require.
-- **One log sheet per calendar day**, drawn on the 24-hour DOT graph grid, with the
-  duty line, quarter-hour ticks, the totals column, the remarks ruler naming the
-  place of every duty-status change, and the rolling cycle recap.
-- **A compliance panel** that re-checks the finished schedule rule by rule and shows
-  where each of the four HOS clocks stands.
+- **A route** with the pickup and drop-off, a marker for every fuel stop, 30-minute
+  break, 10-hour reset and 34-hour restart the regulations require, and turn-by-turn
+  directions for both legs.
+- **One log sheet per calendar day**, drawn to the printed DOT log book: the 24-hour
+  grid with quarter-hour ticks, the duty line, the totals column, the remarks naming
+  the place of every duty-status change, shipping documents, and the 70/8 and 60/7
+  recap.
+- **A duty status timeline** — the whole trip as one Gantt, a row per day.
+- **A compliance report** that re-checks the finished schedule rule by rule, shows how
+  close the busiest duty period came to each limit, and lists the assumptions applied.
+
+Every plan is saved and gets a shareable link.
 
 ---
 
@@ -84,11 +89,20 @@ cd backend && python -m unittest discover -s trips/tests -t .
 | 11 h driving with a 30-minute break, inside the window | guide p.7 |
 | Rolling 8-day totals of 67 / 73 / 63 hours | guide p.11 table |
 | John Doe's completed log: off 10, sleeper 1.75, driving 7.75, on duty 4.5, **= 24** | guide pp.18–19 |
-| 192 generated trips produce zero violations and balanced sheets | — |
+| Generated trips across start hours, distances and cycle states: zero violations, every sheet balanced | — |
 
 The engine also **audits its own output**: after planning, it re-derives every clock
 from the emitted segments rather than trusting its internal state, so a bug in the
 simulator surfaces as a violation instead of hiding.
+
+### Legal is not the same as sensible
+
+A sweep of 6,480 generated trips passed every rule, but 82 of them contained a driver
+pulling out for two or three minutes and stopping again — before a 34-hour restart when
+rounding the prior cycle left a few minutes of allowance, or just short of the fuel mark
+after a rest. Legal, and absurd. The planner now rests first when less than 15 minutes
+of useful driving remains, and fuels at the stop it is already at when the fuel mark is
+that close. Both are within the rules; a test pins it.
 
 ---
 
@@ -107,15 +121,27 @@ backend/                      Django + DRF
       geo.py                  geocoding + routing, ORS primary / OSRM fallback
       us_cities.py            offline gazetteer for remark labels
       planner.py              stitches geo + hos together
-    tests/test_hos.py         FMCSA-derived test suite
+    tests/
+      test_hos.py             the rules, against FMCSA's worked examples
+      test_directions.py      turn-by-turn wording and collapsing
+      test_settings.py        configuration parsing
 
 frontend/                     React + Vite + TypeScript
-  src/components/
-    LogSheet.tsx              the DOT grid, drawn as SVG
-    RouteMap.tsx              Leaflet map, route and stop markers
-    TripForm.tsx              inputs and one-click examples
-    Summary.tsx               stats, HOS clocks, compliance checklist
-    Itinerary.tsx             stop-by-stop timeline
+  src/
+    App.tsx                   shell: sidebar, top bar, view routing, theme
+    views/                    one file per screen
+      PlannerView.tsx         trip form, examples, how the plan is built
+      OverviewView.tsx        KPIs, map, cycle gauge, stops, duty timeline
+      RouteView.tsx           map, itinerary, turn-by-turn directions
+      LogsView.tsx            day strip and the daily log sheets
+      ComplianceView.tsx      rule checks, limit usage, assumptions
+    components/
+      LogSheet.tsx            the DOT log book page, drawn as SVG
+      DutyTimeline.tsx        the trip as a Gantt of duty statuses
+      RouteMap.tsx            Leaflet map, route and stop markers
+      CycleGauge.tsx          the rolling cycle as a segmented gauge
+      Directions.tsx          turn-by-turn list, split by leg
+      Sidebar.tsx             navigation, recent trips, HOS card
 ```
 
 The split matters: `hos.py` knows nothing about HTTP or maps, which is what makes the

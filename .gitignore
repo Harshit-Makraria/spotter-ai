@@ -20,3 +20,6 @@ Thumbs.db
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Personal interview prep -- not part of the project
+prep/
