@@ -61,6 +61,10 @@ POSTTRIP_MINUTES = 15
 
 DEFAULT_AVG_SPEED_MPH = 55.0
 
+#: Shortest stretch worth starting. Below this the planner rests first rather
+#: than logging a few minutes of driving before a mandatory stop.
+MIN_USEFUL_DRIVE = 15
+
 # A duty period may not exceed 14 hours, so no single prior day can carry more.
 MAX_ONDUTY_PER_DAY = 14.0
 
@@ -423,11 +427,17 @@ class _Simulator:
             self._cycle_available(),
         )
 
-    def _make_drivable(self) -> None:
+    def _make_drivable(self, minutes_wanted: float = float("inf")) -> None:
         """Insert whatever rest the regulations require before driving again.
 
         Loops because one remedy can expose another: a 30-minute break consumes
         30 minutes of the 14-hour window, which may itself end the duty period.
+
+        It also declines to start a sliver of driving. Three minutes on the road
+        followed by a 34-hour restart is legal, but no driver would do it and it
+        prints as noise on the log. Resting early is always compliant, so when
+        less than MIN_USEFUL_DRIVE remains and the leg needs more, the rest is
+        taken now.
         """
         for _ in range(8):  # generous bound; each pass resolves one constraint
             if self._cycle_available() <= 0:
@@ -442,12 +452,33 @@ class _Simulator:
             if self.drive_since_break >= MAX_DRIVING_BEFORE_BREAK:
                 self._take_break()
                 continue
-            if self._drivable_minutes() <= 0:
-                # Time remains on paper but not enough to move; close the day.
-                self._take_reset()
+
+            drivable = self._drivable_minutes()
+            if drivable <= 0 or (
+                drivable < MIN_USEFUL_DRIVE and minutes_wanted > drivable
+            ):
+                self._rest_for_binding_limit()
                 continue
             return
         raise InfeasibleTrip("Unable to find a legal driving opportunity.")
+
+    def _rest_for_binding_limit(self) -> None:
+        """Take the rest that clears whichever limit is about to stop driving."""
+        cycle = self._cycle_available()
+        shift = min(
+            MAX_DRIVING_PER_WINDOW - self.drive_in_window, self._window_remaining()
+        )
+        before_break = MAX_DRIVING_BEFORE_BREAK - self.drive_since_break
+
+        if cycle <= min(shift, before_break):
+            self._take_restart()
+        elif shift < MIN_USEFUL_DRIVE + REQUIRED_BREAK:
+            # A break would leave nothing worth driving in this shift; end it.
+            self._take_reset()
+        elif before_break <= shift:
+            self._take_break()
+        else:
+            self._take_reset()
 
     # -- main loop ---------------------------------------------------------
 
@@ -501,13 +532,20 @@ class _Simulator:
         remaining = leg.miles
 
         while remaining > 0.05:
-            self._make_drivable()
+            self._make_drivable(minutes_wanted=remaining / speed * 60)
 
             available_minutes = self._drivable_minutes()
             miles_by_time = available_minutes / 60.0 * speed
             miles_to_fuel = max(0.0, FUEL_INTERVAL_MILES - self.miles_since_fuel)
 
-            if miles_to_fuel <= 0.05:
+            # Fuel is due, or due so soon that pulling out would mean a couple
+            # of miles on the road and then a second stop. Fuelling early is
+            # within the brief ("at least once every 1,000 miles"), so fill up
+            # here -- typically at the truck stop the driver just rested at.
+            useful_miles = MIN_USEFUL_DRIVE / 60.0 * speed
+            if miles_to_fuel <= 0.05 or (
+                miles_to_fuel < useful_miles and remaining > miles_to_fuel
+            ):
                 self._fuel_stop()
                 continue
 

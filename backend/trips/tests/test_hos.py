@@ -204,18 +204,29 @@ class FuelStops(unittest.TestCase):
     """Assessment assumption: fuel at least once every 1,000 miles."""
 
     def test_no_stretch_exceeds_one_thousand_miles(self):
-        plan = make_plan(200, 2600)
-        miles_since_fuel = 0.0
+        """Measured on exact mileage, across start times and cycle states.
 
-        for seg in plan.segments:
-            if seg.status is DutyStatus.DRIVING:
-                miles_since_fuel += seg.miles
-                self.assertLessEqual(
-                    round(miles_since_fuel, 1), 1000.0,
-                    f"drove {miles_since_fuel:.1f} miles without refuelling",
-                )
-            elif seg.kind is EventKind.FUEL:
-                miles_since_fuel = 0.0
+        Summing the one-decimal display figure drifts by up to 0.05 mile per
+        segment, so the assertion uses the underlying odometer readings.
+        """
+        for to_dropoff in (1700, 2600, 3400):
+            for hour in (0, 7, 13, 19):
+                for cycle in (0, 45, 60):
+                    plan = make_plan(
+                        200, to_dropoff, cycle_used=cycle,
+                        start_time=datetime(2026, 3, 2, hour, 0),
+                    )
+                    miles_since_fuel = 0.0
+                    for seg in plan.segments:
+                        if seg.status is DutyStatus.DRIVING:
+                            miles_since_fuel += seg.end_mile - seg.start_mile
+                            self.assertLessEqual(
+                                miles_since_fuel, 1000.0 + 0.01,
+                                f"drove {miles_since_fuel:.3f} miles without "
+                                f"refuelling ({to_dropoff} mi, {hour:02d}:00, cycle {cycle})",
+                            )
+                        elif seg.kind is EventKind.FUEL:
+                            miles_since_fuel = 0.0
 
     def test_fuel_stop_count_scales_with_distance(self):
         self.assertEqual(make_plan(100, 300).summary.fuel_stops, 0)
@@ -427,6 +438,42 @@ class Robustness(unittest.TestCase):
                             self.assertTrue(log_day.is_balanced())
                         checked += 1
         self.assertEqual(checked, 4 * 4 * 4 * 3)
+
+    def test_no_slivers_of_driving_before_a_mandatory_stop(self):
+        """A driver does not pull out for three minutes and then park for 34 hours.
+
+        Rounding the prior cycle across the days before departure can leave a
+        few minutes of allowance. Driving them is legal but absurd, and it
+        prints as noise on the log, so the planner rests first instead. The one
+        legitimate short drive is the last few miles of a leg.
+        """
+        from trips.services.hos import MIN_USEFUL_DRIVE
+
+        for to_pickup in (0, 120, 650):
+            for to_dropoff in (200, 1700, 2800, 3400):
+                for hour in range(0, 24, 2):
+                    for cycle in (0, 30, 45, 60, 66, 69, 69.5):
+                        plan = make_plan(
+                            to_pickup, to_dropoff, cycle_used=cycle,
+                            start_time=datetime(2026, 3, 2, hour, 0),
+                        )
+                        self.assertTrue(plan.feasible, plan.violations)
+                        segments = plan.segments
+                        for index, seg in enumerate(segments):
+                            if seg.status is not DutyStatus.DRIVING:
+                                continue
+                            if seg.minutes >= MIN_USEFUL_DRIVE:
+                                continue
+                            following = segments[index + 1] if index + 1 < len(segments) else None
+                            ends_a_leg = following is None or following.kind in (
+                                EventKind.PICKUP, EventKind.DROPOFF,
+                            )
+                            self.assertTrue(
+                                ends_a_leg,
+                                f"{seg.minutes}-minute drive at {seg.start:%H:%M} "
+                                f"followed by {following.kind.value if following else '-'} "
+                                f"({to_pickup}+{to_dropoff} mi, {hour:02d}:00, cycle {cycle})",
+                            )
 
     def test_mileage_is_conserved(self):
         plan = make_plan(321, 1234)

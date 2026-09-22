@@ -85,6 +85,7 @@ def plan_from_locations(
     )
 
     _label_segments(plan, route, current, pickup, dropoff)
+    _name_departures(route, [current, pickup])
 
     log_days = build_log_days(
         plan.segments,
@@ -160,6 +161,13 @@ def _label_segments(
             previous_place = seg.location
 
 
+def _name_departures(route: geo.Route, origins: list[geo.Place]) -> None:
+    """Start each leg's directions from the place the driver actually is."""
+    for direction in route.directions:
+        if direction["kind"] == "depart" and direction["leg"] < len(origins):
+            direction["text"] = f"Depart {origins[direction['leg']].name}"
+
+
 def serialise(trip: PlannedTrip) -> dict:
     """Shape a planned trip for the API and the React client."""
     plan, route = trip.plan, trip.route
@@ -179,6 +187,7 @@ def serialise(trip: PlannedTrip) -> dict:
                 }
                 for leg in route.legs
             ],
+            "directions": route.directions,
         },
         "summary": {
             "total_miles": summary.total_miles,
