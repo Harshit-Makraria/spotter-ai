@@ -3,7 +3,9 @@
 Plan an hours-of-service compliant truck trip and get back a routed map with every
 required stop, plus a filled-in DOT driver's daily log for each calendar day.
 
-**Live app:** _add your Vercel URL_ · **API:** _add your Render URL_ · **Walkthrough:** _add your Loom URL_
+**Live app:** https://spotter-ai-test.vercel.app · **API:** https://eld-trip-planner-api-bnx5.onrender.com · **Walkthrough:** https://www.loom.com/share/d857ecb4e5b54a2bbb11ed2c49f1bf44
+
+**Example trip:** https://spotter-ai-test.vercel.app/t/ZRxgB0vqU-s
 
 ---
 
