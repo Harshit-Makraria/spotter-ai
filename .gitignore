@@ -23,3 +23,6 @@ Thumbs.db
 
 # Personal interview prep -- not part of the project
 prep/
+
+# Local editor/tooling config
+.claude/
